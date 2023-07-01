@@ -10,11 +10,18 @@ fn main() {
     env_logger::init();
     info!("starting up");
 
-    let (srv, stop_srv) = server::Server::new();
+    let (scheduler, scheduler_evt_s, stop_scheduler) = scheduler::Scheduler::new();
+    scheduler::spawn(scheduler);
+
+    let (srv, stop_srv) = server::Server::new(scheduler_evt_s);
     server::spawn(srv);
 
     let mut sigs = Signals::new(TERM_SIGNALS).unwrap();
     let sig = sigs.into_iter().next().unwrap();
     debug!("received termination signal: {:?}", sig);
-    stop_srv()
+
+    stop_srv();
+    stop_scheduler();
+
+    info!("stopped");
 }
