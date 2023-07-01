@@ -6,3 +6,9 @@ run: build
 
 lint:
 	cargo clippy --tests --workspace -- -D warnings
+
+test:
+	cargo test --verbose -- --nocapture --skip integration ${name}
+
+test_integration:
+	cargo test --test '*' --verbose -- --nocapture --test-threads 1 ${name}
