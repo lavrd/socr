@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    io::{ErrorKind, Read},
+    io::{ErrorKind, Read, Write},
     str::from_utf8,
     sync::mpsc::{channel, Sender},
     thread,
@@ -62,18 +62,7 @@ impl Server {
                     debug!("connection closed: {:?}", addr);
                     connections.remove(token);
                 }
-                Ok(n) => {
-                    buf.truncate(n);
-                    // Check for new line.
-                    if buf.last() == Some(&10) {
-                        buf.pop();
-                    }
-                    debug!("received data: {:?}", from_utf8(&buf).unwrap());
-                    if buf.starts_with(RPC_PREFIX) {
-                        buf.drain(0..RPC_PREFIX.len());
-                        self.scheduler_evt_s.send(SchedulerEvent::Rpc(buf)).unwrap();
-                    }
-                }
+                Ok(n) => self.handle(stream, buf, n),
                 Err(ref e) if e.kind() == ErrorKind::WouldBlock => {
                     // This error means that in socket buffer there are no data but it is not closed.
                 }
@@ -82,9 +71,30 @@ impl Server {
                 }
             }
         }
-        if event.is_writable() {
-            unimplemented!()
+    }
+
+    fn handle(&self, stream: &mut TcpStream, mut buf: Vec<u8>, n: usize) {
+        buf.truncate(n);
+        // Remove new line if exists.
+        if buf.last() == Some(&10) {
+            buf.pop();
         }
+        debug!("received data: {:?}", from_utf8(&buf).unwrap());
+        if buf.starts_with(RPC_PREFIX) {
+            self.handle_rpc(stream, buf);
+        }
+    }
+
+    fn handle_rpc(&self, stream: &mut TcpStream, mut buf: Vec<u8>) {
+        buf.drain(0..RPC_PREFIX.len());
+        let (res_s, res_r) = channel::<Vec<u8>>();
+        self.scheduler_evt_s.send(SchedulerEvent::Rpc { buf, res_s }).unwrap();
+        let mut buf = res_r.recv().unwrap();
+        // Add new line if not exists.
+        if buf.last() != Some(&10) {
+            buf.push(10);
+        }
+        stream.write_all(&buf).unwrap();
     }
 }
 

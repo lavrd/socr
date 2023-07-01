@@ -10,7 +10,10 @@ use log::{debug, trace};
 const TICK_INTERVAL: Duration = Duration::from_secs(3);
 
 pub(crate) enum Event {
-    Rpc(Vec<u8>),
+    Rpc {
+        buf: Vec<u8>,
+        res_s: Sender<Vec<u8>>,
+    },
     Stop,
 }
 
@@ -71,8 +74,9 @@ fn run(mut scheduler: Scheduler) {
         }
         let evt = evt.unwrap();
         match evt {
-            Event::Rpc(buf) => {
+            Event::Rpc { buf, res_s } => {
                 debug!("new rpc request: {:?}", from_utf8(&buf).unwrap());
+                res_s.send(b"asd".to_vec()).unwrap();
             }
             Event::Stop => {
                 trace!("received stop event");
