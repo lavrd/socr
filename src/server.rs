@@ -64,6 +64,10 @@ impl Server {
                 }
                 Ok(n) => {
                     buf.truncate(n);
+                    // Check for new line.
+                    if buf.last() == Some(&10) {
+                        buf.pop();
+                    }
                     debug!("received data: {:?}", from_utf8(&buf).unwrap());
                     if buf.starts_with(RPC_PREFIX) {
                         buf.drain(0..RPC_PREFIX.len());
