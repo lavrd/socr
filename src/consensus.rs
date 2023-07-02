@@ -5,9 +5,9 @@ use std::{
     time::{Duration, Instant},
 };
 
-use log::{trace, warn};
+use log::trace;
 
-use crate::server::Event as SrvEvent;
+use crate::server::{Event as SrvEvent, EventSender as SrvEventSender};
 
 const TICK_INTERVAL: Duration = Duration::from_millis(3_000);
 
@@ -33,18 +33,14 @@ impl Consensus {
         )
     }
 
-    fn tick(&mut self, srv_evt_s: &Sender<SrvEvent>) {
+    fn tick(&mut self, srv_evt_s: &SrvEventSender) {
         if self.last_tick.elapsed() < TICK_INTERVAL {
             return;
         }
         trace!("tick");
-        let res = srv_evt_s.send(SrvEvent::Broadcast {
+        srv_evt_s.send(SrvEvent::Broadcast {
             buf: b"hello from other node".to_vec(),
         });
-        if let Err(e) = res {
-            // It can be okay when we shutdown server while tick is executing.
-            warn!("failed to send broadcast server event: {}", e);
-        }
         self.last_tick = Instant::now();
     }
 }
@@ -52,7 +48,7 @@ impl Consensus {
 pub(crate) fn spawn(
     cons: Consensus,
     evt_s: Sender<Event>,
-    srv_evt_s: Sender<SrvEvent>,
+    srv_evt_s: SrvEventSender,
 ) -> impl FnOnce() {
     let (stop_s, stop_r) = channel::<()>();
 
@@ -66,7 +62,7 @@ pub(crate) fn spawn(
     }
 }
 
-fn handle_events(mut cons: Consensus, srv_evt_s: Sender<SrvEvent>, stop_s: Sender<()>) {
+fn handle_events(mut cons: Consensus, srv_evt_s: SrvEventSender, stop_s: Sender<()>) {
     cons.tick(&srv_evt_s);
     loop {
         let evt = cons.evt_r.recv_timeout(TICK_INTERVAL);
